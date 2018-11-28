@@ -97,11 +97,23 @@ ggdata %>% ggplot(aes(x = 日期,y=累計進出,color = 券商)) +
 #http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5
 rawdata6180 <- getURL("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5") 
 data6180 <- data.frame(
-            date = str_split(rawdata6180," ") %>% "[["(1) %>% "["(1) %>% str_split(",") %>% 
+            日期 = str_split(rawdata6180," ") %>% "[["(1) %>% "["(1) %>% str_split(",") %>% 
               "[["(1) %>% as.Date(),
-            close = str_split(rawdata6180," ") %>% "[["(1) %>% "["(5) %>% str_split(",") %>% 
+            累計進出 = str_split(rawdata6180," ") %>% "[["(1) %>% "["(5) %>% str_split(",") %>% 
               "[["(1) %>% as.numeric()
                        )
-
-data6180[ data6180$date%>% "%in%" (ggdata$日期 %>% unique() ),]
-
+data6180$累計進出 <- data6180$累計進出 * 10 - 800
+ggdata2 <- rbind(
+  cbind(券商 = "6180",data6180[ data6180$日期%>% "%in%" (ggdata$日期 %>% unique() ),]),
+  ggdata[,c("券商",'日期','累計進出')]
+)
+  
+ggdata2 %>% ggplot(aes(x = 日期,y=累計進出,color = 券商,alpha = 券商,size = 券商)) +
+  geom_line() + 
+  geom_point() + 
+  scale_alpha_manual(values = c(1,rep(0.6,10)))+
+  scale_size_manual(values = c(4,rep(2,10))) + 
+  theme_bw() + #去掉背景色
+  theme(panel.grid=element_blank(),  #去掉網線
+        panel.border=element_blank(),#去掉邊線
+        axis.line=element_line(size=1,colour="black"))#加深XY線軸
