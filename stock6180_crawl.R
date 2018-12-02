@@ -2,8 +2,6 @@ library(xml2)
 library(magrittr)
 library(ggplot2)
 library(dplyr)
-library(jsonlite)
-library(RCurl)
 library(stringr)
 #目標股票
 stock <- as.character(6180)
@@ -78,13 +76,13 @@ rownames(netseller_all) <- NULL
 rm(netbuyer_temp);rm(netseller_temp);rm(broker_all);rm(rawdata_all)
 broker_data_all$買進 %<>% as.character() %>% as.numeric()
 broker_data_all$賣出 %<>% as.character() %>% as.numeric()
+broker_data_all$日期 %<>% as.Date()
 broker_data_all %<>% group_by(券商) %>%  mutate(當日進出 = 買進 - 賣出,累計進出 = cumsum(當日進出)) %>%
   as.data.frame()
-#累計進出曾經達到100
+#累計進出曾經達到250
 broker_name <-  broker_data_all[abs(broker_data_all$累計進出) > 250,"券商"] %>% unique()
 ggdata <- broker_data_all[which(broker_data_all$券商 %in% broker_name),] 
 ggdata %>% group_by(券商) %>% summarise(n()) %>% as.data.frame()
-ggdata$日期 %<>% as.Date()
 #作圖
 ggdata %>% ggplot(aes(x = 日期,y=累計進出,color = 券商)) +
   geom_line(size = 1.5) + 
@@ -92,28 +90,65 @@ ggdata %>% ggplot(aes(x = 日期,y=累計進出,color = 券商)) +
   theme_bw() + #去掉背景色
   theme(panel.grid=element_blank(),  #去掉網線
         panel.border=element_blank(),#去掉邊線
-        axis.line=element_line(size=1,colour="black"))#加深XY線軸
+        axis.line=element_line(size=1,colour="black")) + #加深XY線軸
+  scale_y_continuous(breaks = seq(-800,500,100))
+#範圍大致落在500 ~ -800 之間
+
 #http://www.yuanta.com.tw/pages/content/StockInfo.aspx?Node=fad9d056-9903-40f4-9806-b810b59c4b1c
 #http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5
-rawdata6180 <- getURL("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5") 
+#library(jsonlite)
+#library(RCurl)
+#rawdata6180 <- getURL("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5") 
+
+#xml2寫法
+rawdata6180 <- read_html(url("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5")) %>% xml_text()
 data6180 <- data.frame(
             日期 = str_split(rawdata6180," ") %>% "[["(1) %>% "["(1) %>% str_split(",") %>% 
               "[["(1) %>% as.Date(),
             累計進出 = str_split(rawdata6180," ") %>% "[["(1) %>% "["(5) %>% str_split(",") %>% 
               "[["(1) %>% as.numeric()
                        )
-data6180$累計進出 <- data6180$累計進出 * 10 - 800
-ggdata2 <- rbind(
-  cbind(券商 = "6180",data6180[ data6180$日期%>% "%in%" (ggdata$日期 %>% unique() ),]),
-  ggdata[,c("券商",'日期','累計進出')]
-)
-  
-ggdata2 %>% ggplot(aes(x = 日期,y=累計進出,color = 券商,alpha = 券商,size = 券商)) +
+data6180 <- cbind(券商 = "6180",data6180[ data6180$日期 %>% "%in%" (ggdata$日期 %>% unique() ),])
+
+ggdata_250 <- rbind(
+                    cbind(data6180[,c("券商","日期")],累計進出 = data6180[,"累計進出"] * 10 - 800), #將6180收盤價依照比例轉換
+                    ggdata[,c("券商",'日期','累計進出')]
+                   )
+
+ggdata_250 %>% ggplot(aes(x = 日期,y=累計進出,color = 券商,alpha = 券商,size = 券商)) +
   geom_line() + 
   geom_point() + 
-  scale_alpha_manual(values = c(1,rep(0.6,10)))+
+  geom_hline(yintercept = 0,linetype = "dashed",size = 2) +
+  ##設定y的主標籤軸刻度以及添加第二個y的標籤軸
+  scale_y_continuous(breaks = seq(-800,500,100),sec.axis = sec_axis(~ (.+800) / 10 ,breaks = seq(0,120,20)))+  
+  scale_alpha_manual(values = c(1,rep(0.6,10))) +
   scale_size_manual(values = c(4,rep(2,10))) + 
   theme_bw() + #去掉背景色
   theme(panel.grid=element_blank(),  #去掉網線
         panel.border=element_blank(),#去掉邊線
         axis.line=element_line(size=1,colour="black"))#加深XY線軸
+
+#找出非個別通路
+broker_data_all[broker_data_all$券商 %>% str_detect("-") %>% "!"() ,"券商"] %>% unique()
+#挑出幾間外資,幾間國內的券商
+broker_name_mypick <- c("美林","台灣摩根士丹利","美商高盛","元大","新光")
+
+#將挑出券商資料和6180合併
+ggdata_mypick <- rbind(
+                       cbind(data6180[,c("券商","日期")],累計進出 = data6180[,"累計進出"] * 10 - 800), #將6180收盤價依照比例轉換
+                       broker_data_all[broker_data_all$券商 %in%  broker_name_mypick,c("券商",'日期','累計進出')]
+)
+
+ggdata_mypick %>% ggplot(aes(x = 日期,y=累計進出,color = 券商,alpha = 券商,size = 券商)) +
+  geom_line() + 
+  geom_point() + 
+  geom_hline(yintercept = 0,linetype = "dashed",size = 2) +
+  ##設定y的主標籤軸刻度以及添加第二個y的標籤軸
+  scale_y_continuous(breaks = seq(-800,500,100),sec.axis = sec_axis(~ (.+800) / 10 ,breaks = seq(0,120,20)))+  
+  scale_alpha_manual(values = c(1,rep(0.6,10))) +
+  scale_size_manual(values = c(4,rep(2,10))) + 
+  theme_bw() + #去掉背景色
+  theme(panel.grid=element_blank(),  #去掉網線
+        panel.border=element_blank(),#去掉邊線
+        axis.line=element_line(size=1,colour="black"))
+
