@@ -32,43 +32,51 @@ netbuyer <- data1[(1:length(broker))%%2!=0,]
 netseller <-data1[(1:length(broker))%%2==0,]
 netbuyer;netseller
 
-#創建一個物件儲存資料
-netbuyer_all <- NULL 
-netseller_all <- NULL 
-broker_data_all <- NULL
-##彙整2017-7-30 ~ 2017-8-8
-for(i in 1:365){
-  
-    #extract node
-    target = xml_find_all(read_html(url(url[i])), xpath1)
-    target2 <- xml_find_all(read_html(url(url[i])), xpath2)
-    broker_all = xml_text(target)
-    ##偵測是否為停止交易日
-    if(length(broker_all) != 0){
-      rawdata_all <- xml_text(target2)
-      #去掉後面四個多餘的資料
-      rawdata_all <- rawdata[-c(121:124)]
-      #將爬下來的資料整理成一個table
-      broker_data <-matrix(rawdata_all,ncol=length(rawdata_all)/4,nrow=4) %>% t() 
-      broker_data <- data.frame(broker_all,broker_data,date[i])
-      colnames(broker_data) <- c("券商","買進","賣出","買賣超","佔成交比重","日期")
-      #奇數買超券商
-      netbuyer_temp <- broker_data[(1:length(broker))%%2!=0,]
-      netbuyer_all <- rbind(netbuyer_all,netbuyer_temp)
-      
-      #偶數賣超券商
-      netseller_temp <-broker_data[(1:length(broker))%%2==0,]
-      netseller_all <- rbind(netseller_all,netseller_temp)
-      broker_data_all <- rbind(broker_data_all,broker_data)
-      #Sys.sleep(sample(3:7,1)) #跑一次讓系統暫停幾秒來模擬快速版人類行為
-    }
-    else
-      {
-      next()
-    }
-      
-    
-}
+# #創建一個物件儲存資料
+# netbuyer_all <- NULL
+# netseller_all <- NULL
+# broker_data_all <- NULL
+# ##彙整2017-7-30 ~ 2017-8-8
+# for(i in 1:365){
+# 
+#     #extract node
+#     target = xml_find_all(read_html(url(url[i])), xpath1)
+#     target2 <- xml_find_all(read_html(url(url[i])), xpath2)
+#     broker_all = xml_text(target)
+#     ##偵測是否為停止交易日
+#     if(length(broker_all) != 0){
+#       rawdata_all <- xml_text(target2)
+#       #去掉後面四個多餘的資料
+#       rawdata_all <- rawdata[-c(121:124)]
+#       #將爬下來的資料整理成一個table
+#       broker_data <-matrix(rawdata_all,ncol=length(rawdata_all)/4,nrow=4) %>% t()
+#       broker_data <- data.frame(broker_all,broker_data,date[i])
+#       colnames(broker_data) <- c("券商","買進","賣出","買賣超","佔成交比重","日期")
+#       #奇數買超券商
+#       netbuyer_temp <- broker_data[(1:length(broker))%%2!=0,]
+#       netbuyer_all <- rbind(netbuyer_all,netbuyer_temp)
+# 
+#       #偶數賣超券商
+#       netseller_temp <-broker_data[(1:length(broker))%%2==0,]
+#       netseller_all <- rbind(netseller_all,netseller_temp)
+#       broker_data_all <- rbind(broker_data_all,broker_data)
+#       #Sys.sleep(sample(3:7,1)) #跑一次讓系統暫停幾秒來模擬快速版人類行為
+#     }
+#     else
+#       {
+#       next()
+#     }
+# 
+# 
+# }
+# write.csv(broker_data_all,"broker_data_all.csv",row.names = F)
+# write.csv(netbuyer_all,"netbuyer_all.csv",row.names = F)
+# write.csv(netseller_all,"netseller_all.csv",row.names = F)
+#避免每次都要爬資料，爬一次之後將資料存近來節省時間
+broker_data_all <- read.csv("broker_data_all.csv", header = TRUE) 
+netbuyer_all <- read.csv("netbuyer_all.csv", header = TRUE)
+netseller_all <- read.csv("netseller_all.csv", header = TRUE)
+
 #將列名清除
 rownames(netbuyer_all) <- NULL
 rownames(netseller_all) <- NULL
@@ -82,7 +90,6 @@ broker_data_all %<>% group_by(券商) %>%  mutate(當日進出 = 買進 - 賣出
 #累計進出曾經達到250
 broker_name <-  broker_data_all[abs(broker_data_all$累計進出) > 250,"券商"] %>% unique()
 ggdata <- broker_data_all[which(broker_data_all$券商 %in% broker_name),] 
-ggdata %>% group_by(券商) %>% summarise(n()) %>% as.data.frame()
 #作圖
 ggdata %>% ggplot(aes(x = 日期,y=累計進出,color = 券商)) +
   geom_line(size = 1.5) + 
