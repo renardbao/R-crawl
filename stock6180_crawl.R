@@ -108,7 +108,8 @@ ggdata %>% ggplot(aes(x = 日期,y=累計進出,color = 券商)) +
 #rawdata6180 <- getURL("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5") 
 
 #xml2寫法
-rawdata6180 <- read_html(url("http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5")) %>% xml_text()
+rawdata6180 <- "http://jdata.yuanta.com.tw/z/BCD/czkc1.djbcd?a=6180&b=D&E=1&ver=5" %>% url %>% read_html %>% xml_text()
+#第五個是6180收盤價，命名為累計進出是方便跟ggdata進行rbind做後續的畫圖處理
 data6180 <- data.frame(
             日期 = str_split(rawdata6180," ") %>% "[["(1) %>% "["(1) %>% str_split(",") %>% 
               "[["(1) %>% as.Date(),
